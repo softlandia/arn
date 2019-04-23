@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/softlandia/xLib"
+	"github.com/softlandia/xlib"
 )
 
-const num int = 5000
+const num int32 = 50
 
 func fileTrust(ext, path string, i os.FileInfo) bool {
 	if i.IsDir() { //skip dir
@@ -24,18 +24,17 @@ func fileTrust(ext, path string, i os.FileInfo) bool {
 	if filepath.Ext(path) != ext { //skip files with extention not equal extFileName
 		return false
 	}
-	if !xLib.FileExists(path) {
+	if !xlib.FileExists(path) {
 		return false
 	}
 	return true
 }
 
-func arn(n int, path, extFileName string) (int, error) {
-	log.Println("start rename")
-	log.Printf("max file count: %v\n", n)
+func findFiles(fileList *[]string, path, extFileName string) (int, error) {
+	log.Println("start search")
+	log.Println("start path: " + path)
 	log.Println("file name mask: " + extFileName)
 
-	r := rand.New(rand.NewSource(int64(time.Now().Second()) + int64(time.Now().Minute())))
 	i := 0 //index founded files
 	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -43,29 +42,74 @@ func arn(n int, path, extFileName string) (int, error) {
 			return err
 		}
 		if !fileTrust(extFileName, path, info) {
+			//log.Println(">path: " + path)
 			return nil
 		}
 		//file found
 		i++
-		dir := filepath.Dir(path)
-		if dir == "." {
-			dir = ""
-		}
-		fileName := info.Name()
-		if strings.Contains(fileName, "#") {
-			j := strings.Index(fileName, "#") + 1
-			fileName = fileName[j:]
-		}
-
-		newPath := dir + fmt.Sprintf("%v#%s", r.Int31n(int32(n)), fileName)
-		fmt.Printf("%s\n", newPath)
-		os.Rename(path, newPath)
+		*fileList = append(*fileList, path)
 		return nil
 	})
 	return i, err
 }
+
+func arn(fileList *[]string, extFileName string) (int, error) {
+	log.Println("start rename")
+	r := rand.New(rand.NewSource(int64(time.Now().Second()) + int64(time.Now().Minute())))
+	//	i := 0 //index founded files
+	for _, fn := range *fileList {
+		dir := filepath.Dir(fn)
+		//log.Println(fn)
+		//log.Println(dir)
+		newPath := ""
+		if strings.Contains(fn, "#") {
+			j := strings.Index(fn, "#") + 1
+			fn = fn[j:]
+		}
+		if dir == "." {
+			newPath = fmt.Sprintf("%v#%s", r.Int31n(num), filepath.Base(fn))
+		} else {
+			newPath = fmt.Sprintf("%s\\%v#%s", dir, r.Int31n(num), filepath.Base(fn))
+		}
+		fmt.Printf("%s\n", newPath)
+		os.Rename(fn, newPath)
+	}
+	return 0, nil
+}
+
 func main() {
 	log.Println("program start")
-	log.Println("> arn \"x:\\music\" \".mp3\"")
-	log.Println(arn(5000, os.Args[1], os.Args[2]))
+	if len(os.Args) == 1 {
+		log.Println("> arn \"x:\\music" \".mp3\"")
+	}
+	if os.Args[1] == "+" {
+		//тестовый режим, создаём в каталоге os.Args[2] 2400 файлов
+		makeFiles(os.Args[2])
+	} else {
+		fileList := make([]string, 0, 10)
+		fmt.Printf("path to search: '%s'\n", os.Args[1])
+		fmt.Printf("extention: '%s'\n", os.Args[2])
+		n, err := xlib.FindFilesExt(&fileList, os.Args[1], os.Args[2])
+		if err != nil {
+			log.Panic(err)
+		}
+		//i, _ := findFiles(&fileList, os.Args[1], os.Args[2])
+		fmt.Printf("founded :%v files\n", n)
+		log.Println(arn(&fileList, os.Args[2]))
+	}
+}
+
+//create foo files
+func makeFiles(path string) {
+	oFileName := ""
+	for i := 0; i < 2400; i++ {
+		oFileName = fmt.Sprintf(path+"%v.txt", i)
+		fmt.Println("make file: '", oFileName)
+		oFile, err := os.Create(oFileName) //Open file to WRITE
+		if err != nil {
+			fmt.Println("file: " + oFileName + " can't open to write")
+		}
+		defer oFile.Close()
+		fmt.Fprintf(oFile, "%v", i)
+	}
 }

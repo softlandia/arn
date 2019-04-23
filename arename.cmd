@@ -1,1 +1,1 @@
-arn "." ".txt"
+arn "x:\prj\arn" ".txt"
